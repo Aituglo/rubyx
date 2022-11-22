@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +14,7 @@ import (
 )
 
 var config pkg.Config
+var inputData []string
 
 func readConfig() {
 	usr, err := user.Current()
@@ -47,10 +49,13 @@ func main() {
 Usage:
   rubyx (new|rm|set|unset) <program>...
   rubyx programs
+	rubyx domains [-p <program> | --all]
+	rubyx domain (add) (-|<domain>...) [ -p <program> ]
   rubyx -h | --help
   rubyx --version
 Options:
   -h --help     Show this screen.
+	-p <program>	Use the program
   --version     Show version.`
 
 	arguments, _ := docopt.ParseArgs(usage, nil, "Rubyx-CLI 1.0")
@@ -58,6 +63,17 @@ Options:
 	readConfig()
 
 	fmt.Println(arguments)
+
+	if arguments["-"] == true {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			inputData = append(inputData, scanner.Text())
+		}
+
+		if err := scanner.Err(); err != nil {
+			log.Println(err)
+		}
+	}
 
 	if arguments["set"] == true {
 		name := arguments["<program>"].([]string)[0]
@@ -71,14 +87,12 @@ Options:
 		}
 
 		config.ActiveProgram = program.Slug
-		config.ActiveProgramID = int(program.ID)
 
 		writeConfig()
 	}
 
 	if arguments["unset"] == true {
 		config.ActiveProgram = ""
-		config.ActiveProgramID = 0
 
 		writeConfig()
 	}
@@ -117,6 +131,61 @@ Options:
 
 		pkg.Delete(config, "program/slug/"+name)
 
+	}
+
+	if arguments["add"] == true && arguments["domain"] == true {
+		var data []string
+		var program_id int
+
+		if arguments["-"] == true {
+			data = inputData
+		} else {
+			data = arguments["<domain>"].([]string)
+		}
+
+		if arguments["-p"] != nil {
+			program_id = pkg.GetProgramID(config, arguments["-p"].(string))
+		} else {
+			program_id = pkg.GetProgramID(config, config.ActiveProgram)
+		}
+
+		for _, domain := range data {
+
+			var subdomain = []byte(fmt.Sprintf(`{
+				"program_id": %d,
+				"url": "%s"
+			}`, program_id, domain))
+
+			pkg.Post(config, "subdomain", subdomain)
+		}
+
+	}
+
+	if arguments["domains"] == true {
+		var body []byte
+
+		if arguments["-p"] != nil {
+			program_id := pkg.GetProgramID(config, arguments["-p"].(string))
+
+			body = pkg.Get(config, "subdomain/program/"+fmt.Sprint(program_id))
+
+		} else if arguments["--all"] == true {
+			body = pkg.Get(config, "subdomain")
+		} else {
+			program_id := pkg.GetProgramID(config, config.ActiveProgram)
+
+			body = pkg.Get(config, "subdomain/program/"+fmt.Sprint(program_id))
+		}
+
+		var domains []pkg.Subdomain
+		jsonErr := json.Unmarshal(body, &domains)
+		if jsonErr != nil {
+			log.Fatal(jsonErr)
+		}
+
+		for _, domain := range domains {
+			fmt.Println(domain.Url)
+		}
 	}
 
 }
