@@ -9,15 +9,17 @@ type Config struct {
 }
 
 type Program struct {
-	ID         int64     `json:"id"`
-	PlatformID int64     `json:"platform_id"`
-	Name       string    `json:"name"`
-	Slug       string    `json:"slug"`
-	Vdp        bool      `json:"vdp"`
-	Url        string    `json:"url"`
-	Type       string    `json:"type"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID         int    `json:"id"`
+	PlatformID int    `json:"platform_id"`
+	Name       string `json:"name"`
+	Slug       string `json:"slug"`
+	VDP        bool   `json:"vdp"`
+	Favourite  bool   `json:"favourite"`
+	Tag        string `json:"tag"`
+	URL        string `json:"url"`
+	Type       string `json:"type"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 
 type Subdomain struct {
@@ -53,4 +55,32 @@ type Ip struct {
 	Ip          string    `json:"ip"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type WappaGoTechnology struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Cpe     string `json:"cpe"`
+}
+
+type WappaGoInfo struct {
+	StatusCode    int                 `json:"status_code"`
+	Ports         []string            `json:"ports"`
+	Path          string              `json:"path"`
+	Location      string              `json:"location"`
+	Title         string              `json:"title"`
+	Scheme        string              `json:"scheme"`
+	Data          string              `json:"data"`
+	ResponseTime  int                 `json:"response_time"`
+	Screenshot    string              `json:"screenshot_name"`
+	Technologies  []WappaGoTechnology `json:"technologies"`
+	ContentLength int                 `json:"content_length"`
+	ContentType   string              `json:"content_type"`
+	IP            string              `json:"ip"`
+	CertVHost     []string            `json:"certvhost"`
+}
+
+type WappaGo struct {
+	Url   string      `json:"url"`
+	Infos WappaGoInfo `json:"infos"`
 }

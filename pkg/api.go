@@ -5,9 +5,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,7 +23,17 @@ func GetProgramID(config Config, name string) int {
 	}
 
 	return int(program.ID)
+}
 
+func GetProgramIDByScope(config Config, scope string) int {
+	body := Get(config, "scope?subdomain="+scope)
+
+	program_id, err := strconv.Atoi(strings.TrimSpace(string(body)))
+	if err != nil {
+		fmt.Println("Error when converting: ", err)
+	}
+
+	return program_id
 }
 
 func Get(config Config, endpoint string) []byte {
@@ -59,7 +71,7 @@ func Get(config Config, endpoint string) []byte {
 		log.Fatal("An error has occured")
 	}
 
-	body, readErr := ioutil.ReadAll(res.Body)
+	body, readErr := io.ReadAll(res.Body)
 	if readErr != nil {
 		log.Fatal(readErr)
 	}
@@ -103,7 +115,7 @@ func Post(config Config, endpoint string, data []byte) []byte {
 		log.Fatal("An error has occured")
 	}
 
-	body, readErr := ioutil.ReadAll(res.Body)
+	body, readErr := io.ReadAll(res.Body)
 	if readErr != nil {
 		log.Fatal(readErr)
 	}
@@ -148,7 +160,7 @@ func Delete(config Config, endpoint string) []byte {
 		log.Fatal("An error has occured")
 	}
 
-	body, readErr := ioutil.ReadAll(res.Body)
+	body, readErr := io.ReadAll(res.Body)
 	if readErr != nil {
 		log.Fatal(readErr)
 	}

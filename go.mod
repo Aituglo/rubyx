@@ -1,4 +1,4 @@
-module github.com/aituglo/rubyx-cli
+module github.com/aituglo/rubyx
 
 go 1.19
 

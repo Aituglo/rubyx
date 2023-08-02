@@ -2,14 +2,16 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
+	"strings"
 
-	"github.com/aituglo/rubyx-cli/pkg"
+	"github.com/aituglo/rubyx/pkg"
 	"github.com/docopt/docopt-go"
 )
 
@@ -46,21 +48,24 @@ func writeConfig() {
 
 func main() {
 	usage := `Rubyx
-Usage:
-  rubyx (new|rm|set|unset) <program>...
-  rubyx programs
-	rubyx domains [-p <program> | --all]
-	rubyx domain (add) (-|<domain>...) [ -p <program> ]
-  rubyx -h | --help
-  rubyx --version
-Options:
-  -h --help     Show this screen.
-	-p <program>	Use the program
-  --version     Show version.`
+	Usage:
+		rubyx (new|rm|set|unset) <program>...
+		rubyx programs
+		rubyx domains [-p <program> | --all]
+		rubyx domain (add) (-|<domain>...) [ -p <program> ]
+		rubyx tool -t <tool>
+		rubyx -h | --help
+		rubyx --version
+	Options:
+		-h --help     Show this screen.
+		-p <program>	Use the program
+		--version     Show version.`
 
 	arguments, _ := docopt.ParseArgs(usage, nil, "Rubyx-CLI 1.0")
 
 	readConfig()
+
+	var program_id int
 
 	fmt.Println(arguments)
 
@@ -98,7 +103,7 @@ Options:
 	}
 
 	if arguments["programs"] == true {
-		body := pkg.Get(config, "program")
+		body := pkg.Get(config, "program?all=true")
 
 		var programs []pkg.Program
 		jsonErr := json.Unmarshal(body, &programs)
@@ -135,7 +140,6 @@ Options:
 
 	if arguments["add"] == true && arguments["domain"] == true {
 		var data []string
-		var program_id int
 
 		if arguments["-"] == true {
 			data = inputData
@@ -186,6 +190,70 @@ Options:
 		for _, domain := range domains {
 			fmt.Println(domain.Url)
 		}
+	}
+
+	if arguments["tool"] == true {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			inputData = append(inputData, scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			log.Println(err)
+		}
+
+		if arguments["<tool>"].(string) == "wappago" {
+			for _, line := range inputData {
+				var parsed pkg.WappaGo
+				err := json.Unmarshal([]byte(line), &parsed)
+				if err != nil {
+					log.Printf("Error unmarshalling JSON: %v\n", err)
+				}
+
+				if parsed.Infos.Screenshot != "" {
+
+					filePath := "/tmp/screenshots/" + parsed.Infos.Screenshot
+
+					fileContent, err := os.ReadFile(filePath)
+					if err != nil {
+						log.Printf("Error reading file: %v\n", err)
+					}
+
+					base64Encoded := base64.StdEncoding.EncodeToString(fileContent)
+					parsed.Infos.Screenshot = base64Encoded
+
+					err = os.Remove(filePath)
+					if err != nil {
+						log.Printf("Error deleting file: %v\n", err)
+					}
+				}
+
+				domain, err := pkg.ExtractDomain(parsed.Url)
+				if err != nil {
+					log.Printf("Error when extracting domain: %v\n", err)
+				}
+				program_id = pkg.GetProgramIDByScope(config, domain)
+				var technologies string
+				for _, technology := range parsed.Infos.Technologies {
+					technologies += technology.Name + ","
+				}
+
+				if program_id != -1 {
+					var subdomain = []byte(fmt.Sprintf(`{
+						"program_id": %d,
+						"url": "%s",
+						"title": "%s",
+						"technologies": "%s",
+						"ip": "%s",
+						"screenshot": "%s",
+						"port": "%s",
+						"content_length": %d,
+						"status_code": %d
+					}`, program_id, parsed.Url, parsed.Infos.Title, technologies, parsed.Infos.IP, parsed.Infos.Screenshot, strings.Join(parsed.Infos.Ports, ","), int32(parsed.Infos.ContentLength), int32(parsed.Infos.StatusCode)))
+					pkg.Post(config, "subdomain", subdomain)
+				}
+			}
+		}
+
 	}
 
 }
