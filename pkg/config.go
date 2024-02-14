@@ -25,12 +25,14 @@ type Program struct {
 type Subdomain struct {
 	ID            int64     `json:"id"`
 	ProgramID     int64     `json:"program_id"`
-	Url           string    `json:"url"`
+	Subdomain     string    `json:"subdomain"`
 	Title         string    `json:"title"`
 	BodyHash      string    `json:"body_hash"`
 	StatusCode    int32     `json:"status_code"`
-	Technologies  string    `json:"technologies"`
 	ContentLength int32     `json:"content_length"`
+	Tag           string    `json:"tag"`
+	Port          int       `json:"port"`
+	Favourite     bool      `json:"favourite"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }

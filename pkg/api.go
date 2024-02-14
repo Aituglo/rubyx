@@ -3,38 +3,12 @@ package pkg
 import (
 	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 )
-
-func GetProgramID(config Config, name string) int {
-	body := Get(config, "program/slug/"+name)
-
-	var program Program
-	jsonErr := json.Unmarshal(body, &program)
-	if jsonErr != nil {
-		log.Fatal(jsonErr)
-	}
-
-	return int(program.ID)
-}
-
-func GetProgramIDByScope(config Config, scope string) int {
-	body := Get(config, "scope?subdomain="+scope)
-
-	program_id, err := strconv.Atoi(strings.TrimSpace(string(body)))
-	if err != nil {
-		fmt.Println("Error when converting: ", err)
-	}
-
-	return program_id
-}
 
 func Get(config Config, endpoint string) []byte {
 	url := config.Url + endpoint
