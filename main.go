@@ -2,15 +2,13 @@ package main
 
 import (
 	"bufio"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/aituglo/rubyx/pkg"
 	"github.com/aituglo/rubyx/rubyx"
+	"github.com/aituglo/rubyx/tool"
 	"github.com/docopt/docopt-go"
 )
 
@@ -21,9 +19,13 @@ func main() {
 	usage := `Rubyx
 	Usage:
 		rubyx (new|rm|set|unset) <program>...
-		rubyx programs
+		rubyx current
+		rubyx programs [reload]
+		rubyx scope [-p <program>]
 		rubyx subdomains [-p <program> | --all]
 		rubyx subdomain (add) (-|<subdomain>...) [ -p <program> ]
+		rubyx ips [-p <program> | --all]
+		rubyx technologies
 		rubyx tool -t <tool>
 		rubyx -h | --help
 		rubyx --version
@@ -33,8 +35,6 @@ func main() {
 		--version     Show version.`
 
 	arguments, _ := docopt.ParseArgs(usage, nil, "Rubyx-CLI 1.0")
-
-	fmt.Println(arguments)
 
 	pkg.ReadConfig(&config)
 
@@ -53,12 +53,19 @@ func main() {
 		rubyx.SetProgram(config, name)
 	}
 
+	if arguments["current"] == true {
+		fmt.Println(config.ActiveProgram)
+	}
+
 	if arguments["unset"] == true {
 		config.ActiveProgram = ""
 		pkg.WriteConfig(config)
 	}
 
 	if arguments["programs"] == true {
+		if arguments["reload"] == true {
+			rubyx.ReloadPrograms(config)
+		}
 		programs := rubyx.GetAllPrograms(config)
 
 		for _, program := range programs {
@@ -83,7 +90,7 @@ func main() {
 		if arguments["-"] == true {
 			data = inputData
 		} else {
-			data = arguments["<domain>"].([]string)
+			data = arguments["<subdomain>"].([]string)
 		}
 
 		if arguments["-p"] != nil {
@@ -93,15 +100,8 @@ func main() {
 		}
 
 		for _, domain := range data {
-
-			var subdomain = []byte(fmt.Sprintf(`{
-				"program_id": %d,
-				"url": "%s"
-			}`, program_id, domain))
-
-			pkg.Post(config, "subdomain", subdomain)
+			rubyx.AddSubdomain(config, domain, program_id)
 		}
-
 	}
 
 	if arguments["subdomains"] == true {
@@ -124,8 +124,53 @@ func main() {
 		}
 	}
 
+	if arguments["ips"] == true {
+		var program_id int
+		var ips []pkg.Ip
+
+		if arguments["--all"] == true {
+			ips = rubyx.GetAllIps(config)
+		} else {
+			if arguments["-p"] != nil {
+				program_id = rubyx.GetProgramID(config, arguments["-p"].(string))
+			} else {
+				program_id = rubyx.GetProgramID(config, config.ActiveProgram)
+			}
+			ips = rubyx.GetIpsByProgram(config, program_id)
+		}
+
+		for _, ip := range ips {
+			fmt.Println(ip.Ip)
+		}
+	}
+
+	if arguments["scope"] == true {
+		var program_id int
+		var scope []pkg.Scope
+
+		if arguments["-p"] != nil {
+			program_id = rubyx.GetProgramID(config, arguments["-p"].(string))
+		} else {
+			program_id = rubyx.GetProgramID(config, config.ActiveProgram)
+		}
+		scope = rubyx.GetScope(config, program_id)
+
+		for _, domain := range scope {
+			fmt.Println(domain.Scope)
+		}
+	}
+
+	if arguments["technologies"] == true {
+		technologies := rubyx.GetAllTechnologies(config)
+
+		for _, technology := range technologies {
+			fmt.Println(technology.Name)
+		}
+	}
+
 	if arguments["tool"] == true {
 		var program_id int
+
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
 			inputData = append(inputData, scanner.Text())
@@ -134,57 +179,14 @@ func main() {
 			log.Println(err)
 		}
 
+		if arguments["-p"] != nil {
+			program_id = rubyx.GetProgramID(config, arguments["-p"].(string))
+		} else {
+			program_id = rubyx.GetProgramID(config, config.ActiveProgram)
+		}
+
 		if arguments["<tool>"].(string) == "wappago" {
-			for _, line := range inputData {
-				var parsed pkg.WappaGo
-				err := json.Unmarshal([]byte(line), &parsed)
-				if err != nil {
-					log.Printf("Error unmarshalling JSON: %v\n", err)
-				}
-
-				if parsed.Infos.Screenshot != "" {
-
-					filePath := "/tmp/screenshots/" + parsed.Infos.Screenshot
-
-					fileContent, err := os.ReadFile(filePath)
-					if err != nil {
-						log.Printf("Error reading file: %v\n", err)
-					}
-
-					base64Encoded := base64.StdEncoding.EncodeToString(fileContent)
-					parsed.Infos.Screenshot = base64Encoded
-
-					err = os.Remove(filePath)
-					if err != nil {
-						log.Printf("Error deleting file: %v\n", err)
-					}
-				}
-
-				domain, err := pkg.ExtractDomain(parsed.Url)
-				if err != nil {
-					log.Printf("Error when extracting domain: %v\n", err)
-				}
-				program_id = rubyx.GetProgramIDByScope(config, domain)
-				var technologies string
-				for _, technology := range parsed.Infos.Technologies {
-					technologies += technology.Name + ","
-				}
-
-				if program_id != -1 {
-					var subdomain = []byte(fmt.Sprintf(`{
-						"program_id": %d,
-						"url": "%s",
-						"title": "%s",
-						"technologies": "%s",
-						"ip": "%s",
-						"screenshot": "%s",
-						"port": "%s",
-						"content_length": %d,
-						"status_code": %d
-					}`, program_id, parsed.Url, parsed.Infos.Title, technologies, parsed.Infos.IP, parsed.Infos.Screenshot, strings.Join(parsed.Infos.Ports, ","), int32(parsed.Infos.ContentLength), int32(parsed.Infos.StatusCode)))
-					pkg.Post(config, "subdomain", subdomain)
-				}
-			}
+			tool.WappaGo(config, inputData, program_id)
 		}
 
 	}

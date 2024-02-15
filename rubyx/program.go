@@ -48,6 +48,10 @@ func NewProgram(config pkg.Config, name string) {
 	pkg.Post(config, "program", data)
 }
 
+func ReloadPrograms(config pkg.Config) {
+	pkg.Get(config, "programs?reload=1")
+}
+
 func GetAllPrograms(config pkg.Config) []pkg.Program {
 	body := pkg.Get(config, "programs?all=1")
 

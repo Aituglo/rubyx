@@ -13,9 +13,7 @@ type SubdomainResponse struct {
 	TotalSubdomains int             `json:"totalSubdomains"`
 }
 
-func AddSubdomain(config pkg.Config, subdomain string) {
-	program_id := GetProgramID(config, config.ActiveProgram)
-
+func AddSubdomain(config pkg.Config, subdomain string, program_id int) {
 	var data = []byte(fmt.Sprintf(`{
 		"subdomain": "%s",
 		"program_id": %d

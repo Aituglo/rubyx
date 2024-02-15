@@ -1,6 +1,8 @@
 package pkg
 
-import "time"
+import (
+	"time"
+)
 
 type Config struct {
 	Url           string `json:"url"`
@@ -22,19 +24,52 @@ type Program struct {
 	UpdatedAt  string `json:"updated_at"`
 }
 
+type Scope struct {
+	ID        int64     `json:"id"`
+	ProgramID int64     `json:"program_id"`
+	Scope     string    `json:"scope"`
+	ScopeType string    `json:"scope_type"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Subdomain struct {
 	ID            int64     `json:"id"`
 	ProgramID     int64     `json:"program_id"`
 	Subdomain     string    `json:"subdomain"`
+	Tag           string    `json:"tag"`
+	Ip            *int64    `json:"ip"`
 	Title         string    `json:"title"`
 	BodyHash      string    `json:"body_hash"`
 	StatusCode    int32     `json:"status_code"`
 	ContentLength int32     `json:"content_length"`
-	Tag           string    `json:"tag"`
-	Port          int       `json:"port"`
+	Screenshot    string    `json:"screenshot"`
 	Favourite     bool      `json:"favourite"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type TechnologieSubdomain struct {
+	ID                int64     `json:"id"`
+	TechnologyVersion int64     `json:"technology_version"`
+	SubdomainID       int64     `json:"subdomain_id"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type TechnologieVersion struct {
+	ID           int64     `json:"id"`
+	TechnologyID int64     `json:"technology_id"`
+	Version      string    `json:"version"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type Technology struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Url struct {
@@ -51,12 +86,19 @@ type Url struct {
 }
 
 type Ip struct {
-	ID          int64     `json:"id"`
-	ProgramID   int64     `json:"program_id"`
-	SubdomainID int64     `json:"subdomain_id"`
-	Ip          string    `json:"ip"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID        int64     `json:"id"`
+	ProgramID int64     `json:"program_id"`
+	Ip        string    `json:"ip"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Port struct {
+	ID        int64     `json:"id"`
+	IpID      int64     `json:"ip_id"`
+	Port      int32     `json:"port"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type WappaGoTechnology struct {
