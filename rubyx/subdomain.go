@@ -34,6 +34,18 @@ func GetAllSubdomains(config pkg.Config) []pkg.Subdomain {
 	return subdomainResponse.Subdomains
 }
 
+func GetSubdomainsByTechnology(config pkg.Config, technology string) []pkg.Subdomain {
+	body := pkg.Get(config, "subdomains?technology="+technology)
+
+	var subdomainResponse SubdomainResponse
+	jsonErr := json.Unmarshal(body, &subdomainResponse)
+	if jsonErr != nil {
+		log.Fatal(jsonErr)
+	}
+
+	return subdomainResponse.Subdomains
+}
+
 func GetSubdomainsByProgram(config pkg.Config, program_id int) []pkg.Subdomain {
 	body := pkg.Get(config, "subdomains?program_id="+fmt.Sprint(program_id))
 

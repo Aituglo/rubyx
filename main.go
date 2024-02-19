@@ -3,192 +3,185 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
-	"os"
-
 	"github.com/aituglo/rubyx/pkg"
 	"github.com/aituglo/rubyx/rubyx"
 	"github.com/aituglo/rubyx/tool"
-	"github.com/docopt/docopt-go"
+	"github.com/alecthomas/kong"
+	"log"
+	"os"
 )
 
-var config pkg.Config
-var inputData []string
+type Context struct {
+	Config    *pkg.Config
+	Cli       CLI
+	ProgramID int
+	InputData []string
+}
+
+type CLI struct {
+	Programs     ProgramsCommand   `cmd:"programs" help:"Manage programs"`
+	Scope        struct{}          `cmd:"scope" help:"Show scope"`
+	New          ProgramCommand    `cmd:"new" help:"Create new program"`
+	Remove       ProgramCommand    `cmd:"rm" help:"Remove program"`
+	Set          ProgramCommand    `cmd:"set" help:"Set active program"`
+	Unset        struct{}          `cmd:"unset" help:"Unset active program"`
+	Current      struct{}          `cmd:"current" help:"Show current program"`
+	Program      string            `name:"p" help:"Program name"`
+	Subdomains   SubdomainsCommand `cmd:"subdomains" help:"Manage subdomains"`
+	Ips          IpsCommand        `cmd:"ips" help:"Manage ips"`
+	Technologies struct{}          `cmd:"technologies" help:"Show technologies"`
+	Tool         ToolCommand       `cmd:"tool" help:"Run tool"`
+	All          bool              `name:"all" help:"Get all"`
+}
+
+type SubdomainsCommand struct {
+	Add        struct{} `cmd:"add" help:"Add subdomain" optional:""`
+	Show       struct{} `cmd:"show" help:"Show subdomains" optional:""`
+	Technology string   `name:"t" help:"Technology name"`
+}
+
+type IpsCommand struct {
+	Add  struct{} `cmd:"add" help:"Add ip" optional:""`
+	Show struct{} `cmd:"show" help:"Show ips" optional:""`
+}
+
+type ToolCommand struct {
+	Name  string   `help:"Tool name"`
+	Input []string `arg:"" type:"existingfile"`
+}
+
+type ProgramCommand struct {
+	Program string `arg:"program" help:"Program name"`
+}
+
+type ProgramsCommand struct {
+	Reload bool `help:"Reload programs" optional:""`
+}
+
+var (
+	cli CLI
+	ctx = kong.Parse(&cli)
+)
 
 func main() {
-	usage := `Rubyx
-	Usage:
-		rubyx (new|rm|set|unset) <program>...
-		rubyx current
-		rubyx programs [reload]
-		rubyx scope [-p <program>]
-		rubyx subdomains [-p <program> | --all]
-		rubyx subdomain (add) (-|<subdomain>...) [ -p <program> ]
-		rubyx ips [-p <program> | --all]
-		rubyx technologies
-		rubyx tool -t <tool>
-		rubyx -h | --help
-		rubyx --version
-	Options:
-		-h --help     Show this screen.
-		-p <program>	Use the program
-		--version     Show version.`
+	var programId int
+	config := &pkg.Config{}
+	pkg.ReadConfig(config)
 
-	arguments, _ := docopt.ParseArgs(usage, nil, "Rubyx-CLI 1.0")
+	if cli.Program != "" {
+		programId = rubyx.GetProgramID(*config, cli.Program)
+	} else if config.ActiveProgram != "" {
+		programId = rubyx.GetProgramID(*config, config.ActiveProgram)
+	}
+	context := &Context{Config: config, ProgramID: programId, Cli: cli}
 
-	pkg.ReadConfig(&config)
-
-	if arguments["-"] == true {
-		scanner := bufio.NewScanner(os.Stdin)
-		for scanner.Scan() {
-			inputData = append(inputData, scanner.Text())
+	switch ctx.Command() {
+	case "programs":
+		if cli.Programs.Reload {
+			rubyx.ReloadPrograms(*config)
 		}
-		if err := scanner.Err(); err != nil {
-			log.Println(err)
-		}
-	}
-
-	if arguments["set"] == true {
-		name := arguments["<program>"].([]string)[0]
-		rubyx.SetProgram(config, name)
-	}
-
-	if arguments["current"] == true {
-		fmt.Println(config.ActiveProgram)
-	}
-
-	if arguments["unset"] == true {
+		context.showPrograms()
+	case "scope":
+		context.showScope()
+	case "new":
+		rubyx.NewProgram(*config, cli.New.Program)
+	case "rm":
+		rubyx.DeleteProgram(*config, cli.Remove.Program)
+	case "set":
+		rubyx.SetProgram(*config, cli.Set.Program)
+	case "unset":
 		config.ActiveProgram = ""
-		pkg.WriteConfig(config)
+		pkg.WriteConfig(*config)
+	case "current":
+		fmt.Println(config.ActiveProgram)
+	case "subdomains show":
+		context.showSubdomains()
+	case "subdomains add":
+		rubyx.AddSubdomain(*config, cli.Program, programId)
+	case "technologies":
+		context.showTechnologies()
+	case "ips show":
+		context.showIPs(cli.All)
+	case "ips add":
+		rubyx.AddIp(*config, cli.Program, programId)
+	case "tool <input>":
+		context.runTool(cli.Tool.Name)
+	}
+}
+
+func (c *Context) showPrograms() {
+	programs := rubyx.GetAllPrograms(*c.Config)
+	for _, program := range programs {
+		fmt.Println(program.Slug)
+	}
+}
+func (c *Context) showScope() {
+	scope := rubyx.GetScope(*c.Config, c.ProgramID)
+	for _, domain := range scope {
+		fmt.Println(domain.Scope)
+	}
+}
+func (c *Context) showSubdomains() {
+	var subdomains []pkg.Subdomain
+
+	if c.Cli.Subdomains.Technology != "" {
+		subdomains = rubyx.GetSubdomainsByTechnology(*c.Config, c.Cli.Subdomains.Technology)
+	} else if c.Cli.All {
+		subdomains = rubyx.GetAllSubdomains(*c.Config)
+	} else {
+		subdomains = rubyx.GetSubdomainsByProgram(*c.Config, c.ProgramID)
 	}
 
-	if arguments["programs"] == true {
-		if arguments["reload"] == true {
-			rubyx.ReloadPrograms(config)
-		}
-		programs := rubyx.GetAllPrograms(config)
-
-		for _, program := range programs {
-			fmt.Println(program.Slug)
-		}
+	for _, domain := range subdomains {
+		fmt.Println(domain.Subdomain)
 	}
+}
 
-	if arguments["new"] == true {
-		name := arguments["<program>"].([]string)[0]
-		rubyx.NewProgram(config, name)
+func (c *Context) showTechnologies() {
+	technologies := rubyx.GetAllTechnologies(*c.Config)
+	for _, technology := range technologies {
+		fmt.Println(technology.Name)
 	}
+}
 
-	if arguments["rm"] == true {
-		name := arguments["<program>"].([]string)[0]
-		rubyx.DeleteProgram(config, name)
+func (c *Context) showIPs(all bool) {
+	var ips []pkg.Ip
+	if all {
+		ips = rubyx.GetAllIps(*c.Config)
+	} else if c.Config.ActiveProgram != "" {
+		programId := rubyx.GetProgramID(*c.Config, c.Config.ActiveProgram)
+		ips = rubyx.GetIpsByProgram(*c.Config, programId)
 	}
-
-	if arguments["add"] == true && arguments["subdomain"] == true {
-		var data []string
-		var program_id int
-
-		if arguments["-"] == true {
-			data = inputData
-		} else {
-			data = arguments["<subdomain>"].([]string)
-		}
-
-		if arguments["-p"] != nil {
-			program_id = rubyx.GetProgramID(config, arguments["-p"].(string))
-		} else {
-			program_id = rubyx.GetProgramID(config, config.ActiveProgram)
-		}
-
-		for _, domain := range data {
-			rubyx.AddSubdomain(config, domain, program_id)
-		}
-	}
-
-	if arguments["subdomains"] == true {
-		var program_id int
-		var subdomains []pkg.Subdomain
-
-		if arguments["--all"] == true {
-			subdomains = rubyx.GetAllSubdomains(config)
-		} else {
-			if arguments["-p"] != nil {
-				program_id = rubyx.GetProgramID(config, arguments["-p"].(string))
-			} else {
-				program_id = rubyx.GetProgramID(config, config.ActiveProgram)
-			}
-			subdomains = rubyx.GetSubdomainsByProgram(config, program_id)
-		}
-
-		for _, domain := range subdomains {
-			fmt.Println(domain.Subdomain)
-		}
-	}
-
-	if arguments["ips"] == true {
-		var program_id int
-		var ips []pkg.Ip
-
-		if arguments["--all"] == true {
-			ips = rubyx.GetAllIps(config)
-		} else {
-			if arguments["-p"] != nil {
-				program_id = rubyx.GetProgramID(config, arguments["-p"].(string))
-			} else {
-				program_id = rubyx.GetProgramID(config, config.ActiveProgram)
-			}
-			ips = rubyx.GetIpsByProgram(config, program_id)
-		}
-
+	if len(ips) > 0 {
 		for _, ip := range ips {
 			fmt.Println(ip.Ip)
 		}
 	}
+}
 
-	if arguments["scope"] == true {
-		var program_id int
-		var scope []pkg.Scope
+func (c *Context) runTool(name string) {
+	var data *os.File
+	var err error
 
-		if arguments["-p"] != nil {
-			program_id = rubyx.GetProgramID(config, arguments["-p"].(string))
+	for _, file := range c.Cli.Tool.Input {
+		if file == "-" {
+			data = os.Stdin
 		} else {
-			program_id = rubyx.GetProgramID(config, config.ActiveProgram)
+			data, err = os.Open(file)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
-		scope = rubyx.GetScope(config, program_id)
-
-		for _, domain := range scope {
-			fmt.Println(domain.Scope)
-		}
-	}
-
-	if arguments["technologies"] == true {
-		technologies := rubyx.GetAllTechnologies(config)
-
-		for _, technology := range technologies {
-			fmt.Println(technology.Name)
-		}
-	}
-
-	if arguments["tool"] == true {
-		var program_id int
-
-		scanner := bufio.NewScanner(os.Stdin)
+		scanner := bufio.NewScanner(data)
 		for scanner.Scan() {
-			inputData = append(inputData, scanner.Text())
+			c.InputData = append(c.InputData, scanner.Text())
 		}
 		if err := scanner.Err(); err != nil {
 			log.Println(err)
 		}
-
-		if arguments["-p"] != nil {
-			program_id = rubyx.GetProgramID(config, arguments["-p"].(string))
-		} else {
-			program_id = rubyx.GetProgramID(config, config.ActiveProgram)
-		}
-
-		if arguments["<tool>"].(string) == "wappago" {
-			tool.WappaGo(config, inputData, program_id)
-		}
-
 	}
 
+	if name == "wappago" {
+		tool.WappaGo(*c.Config, c.InputData, c.ProgramID)
+	}
 }

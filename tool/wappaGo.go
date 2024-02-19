@@ -54,17 +54,6 @@ func WappaGo(config pkg.Config, inputData []string, program_id int) {
 			rubyx.AddPort(config, portInt, int(ip_id))
 		}
 
-		fmt.Printf(`{
-			"program_id": %d,
-			"subdomain": "%s",
-			"title": "%s",
-			"ip": %d,
-			"screenshot": "%s",
-			"content_length": %d,
-			"status_code": %d,
-			"tag": "wappago"
-		}`, program_id, domain, parsed.Infos.Title, ip_id, parsed.Infos.Screenshot, int32(parsed.Infos.ContentLength), int32(parsed.Infos.StatusCode))
-
 		var subdomain = []byte(fmt.Sprintf(`{
 				"program_id": %d,
 				"subdomain": "%s",
